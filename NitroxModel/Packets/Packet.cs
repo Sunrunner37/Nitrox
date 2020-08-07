@@ -5,9 +5,9 @@ using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using NitroxModel.DataStructures.Surrogates;
 using NitroxModel.Logger;
-using LZ4;
 using NitroxModel.Networking;
 using System.Collections.Generic;
+using SevenZip.Compression.LZMA;
 
 namespace NitroxModel.Packets
 {
@@ -19,6 +19,8 @@ namespace NitroxModel.Packets
         private static readonly BinaryFormatter serializer;
 
         private static readonly string[] blacklistedAssemblies = { "NLog" };
+        private static readonly Decoder decoder = new Decoder();
+        private static readonly Encoder encoder = new Encoder();
 
         static Packet()
         {
@@ -60,24 +62,40 @@ namespace NitroxModel.Packets
 
         public byte[] Serialize()
         {
-            byte[] packetData;
-
-            using (MemoryStream ms = new MemoryStream())
-            using (LZ4Stream lz4Stream = new LZ4Stream(ms, LZ4StreamMode.Compress))
+            using (MemoryStream input = new MemoryStream())
+            using (MemoryStream output = new MemoryStream())
             {
-                serializer.Serialize(lz4Stream, this);
-                packetData = ms.ToArray();
+                serializer.Serialize(input, this);
+                input.Position = 0;
+                
+                // Write the data size and compress the data.
+                encoder.WriteCoderProperties(output);
+                output.Write(BitConverter.GetBytes((uint)input.Length), 0, 4);
+                encoder.Code(input, output, input.Length, -1, null);
+                
+                return output.ToArray();
             }
-
-            return packetData;
         }
 
         public static Packet Deserialize(byte[] data)
         {
-            using (Stream stream = new MemoryStream(data))
-            using (LZ4Stream lz4Stream = new LZ4Stream(stream, LZ4StreamMode.Decompress))
+            using (MemoryStream input = new MemoryStream(data))
+            using (MemoryStream output = new MemoryStream())
             {
-                return (Packet)serializer.Deserialize(lz4Stream);
+                byte[] properties = new byte[5];
+                input.Read(properties, 0, 5);
+                
+                // Read in the size of serialized (uncompressed) data.
+                byte[] fileLengthBytes = new byte[4];
+                input.Read(fileLengthBytes, 0, 4);
+                uint fileLength = BitConverter.ToUInt32(fileLengthBytes, 0);
+                
+                // Decompress.
+                decoder.SetDecoderProperties(properties);
+                decoder.Code(input, output, input.Length, fileLength, null);
+                output.Position = 0;
+                
+                return (Packet)serializer.Deserialize(output);
             }
         }
 
