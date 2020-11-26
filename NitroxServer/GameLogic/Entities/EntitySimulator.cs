@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using NitroxModel.DataStructures;
 using NitroxModel.DataStructures.GameLogic;
+using NitroxModel.DataStructures.GameLogic.Entities;
 using NitroxModel.Logger;
 
 namespace NitroxServer.GameLogic.Entities
@@ -24,13 +25,13 @@ namespace NitroxServer.GameLogic.Entities
             this.serverSpawnedSimulationWhiteList = serverSpawnedSimulationWhiteList;
         }
 
-        public List<SimulatedEntity> CalculateSimulationChangesFromCellSwitch(Player player, AbsoluteEntityCell[] added, AbsoluteEntityCell[] removed)
+        public List<SimulatedEntity> CalculateSimulationChangesFromCellSwitch(Player player, CellChanges cellChanges)
         {
             List<SimulatedEntity> ownershipChanges = new List<SimulatedEntity>();
 
-            AssignLoadedCellEntitySimulation(player, added, ownershipChanges);
+            AssignLoadedCellEntitySimulation(player, cellChanges.Added.ToArray(), ownershipChanges);
 
-            List<Entity> revokedEntities = RevokeForCells(player, removed);
+            List<Entity> revokedEntities = RevokeForCells(player, cellChanges.Removed.ToArray());
             AssignEntitiesToNewPlayers(player, revokedEntities, ownershipChanges);
 
             return ownershipChanges;
@@ -96,7 +97,7 @@ namespace NitroxServer.GameLogic.Entities
                     {
                         bool isSpawnedByServerAndWhitelisted = entity.SpawnedByServer && serverSpawnedSimulationWhiteList.Contains(entity.TechType);
                         bool isEligibleForSimulation = isSpawnedByServerAndWhitelisted || !entity.SpawnedByServer;
-                        return cell.Level <= entity.Level && isEligibleForSimulation && simulationOwnershipData.TryToAcquire(entity.Id, player, DEFAULT_ENTITY_SIMULATION_LOCKTYPE);
+                        return simulationOwnershipData.TryToAcquire(entity.Id, player, DEFAULT_ENTITY_SIMULATION_LOCKTYPE);
                     }));
             }
 
@@ -109,7 +110,7 @@ namespace NitroxServer.GameLogic.Entities
             foreach (AbsoluteEntityCell cell in removed)
             {
                 List<Entity> entities = entityManager.GetEntities(cell);
-                revokedEntities.AddRange(entities.Where(entity => entity.Level <= cell.Level && simulationOwnershipData.RevokeIfOwner(entity.Id, player)));
+                revokedEntities.AddRange(entities.Where(entity => simulationOwnershipData.RevokeIfOwner(entity.Id, player)));
             }
 
             return revokedEntities;

@@ -5,6 +5,7 @@ using System.Linq;
 using NitroxModel.DataStructures.Util;
 using NitroxModel.Logger;
 using NitroxModel.DataStructures;
+using NitroxModel.DataStructures.GameLogic.Entities;
 
 namespace NitroxServer.GameLogic.Entities
 {
@@ -13,7 +14,7 @@ namespace NitroxServer.GameLogic.Entities
         private readonly Dictionary<NitroxId, Entity> entitiesById;
 
         // Phasing entities can disappear if you go out of range. 
-        private readonly Dictionary<AbsoluteEntityCell, List<Entity>> phasingEntitiesByAbsoluteCell;
+        private readonly Dictionary<NitroxInt3, List<Entity>> phasingEntitiesByBatchCell;
 
         // Global root entities that are always visible.
         private readonly Dictionary<NitroxId, Entity> globalRootEntitiesById;
@@ -27,23 +28,23 @@ namespace NitroxServer.GameLogic.Entities
             globalRootEntitiesById = entities.FindAll(entity => entity.ExistsInGlobalRoot)
                                              .ToDictionary(entity => entity.Id);
 
-            phasingEntitiesByAbsoluteCell = entities.FindAll(entity => !entity.ExistsInGlobalRoot)
-                                                    .GroupBy(entity => entity.AbsoluteEntityCell)
+            phasingEntitiesByBatchCell = entities.FindAll(entity => !entity.ExistsInGlobalRoot)
+                                                    .GroupBy(entity => entity.AbsoluteEntityCell.BatchId)
                                                     .ToDictionary(group => group.Key, group => group.ToList());
 
             this.batchEntitySpawner = batchEntitySpawner;
         }
 
-        public List<Entity> GetVisibleEntities(AbsoluteEntityCell[] cells)
+        public List<Entity> GetVisibleEntities(CellChanges cellChanges)
         {
-            LoadUnspawnedEntities(cells);
+            LoadUnspawnedEntities(cellChanges.Added.ToArray());
 
             List<Entity> entities = new List<Entity>();
 
-            foreach (AbsoluteEntityCell cell in cells)
+            foreach (AbsoluteEntityCell cell in cellChanges.Added)
             {
                 List<Entity> cellEntities = GetEntities(cell);
-                entities.AddRange(cellEntities.Where(entity => cell.Level <= entity.Level));
+                entities.AddRange(cellEntities);
             }
 
             return entities;
@@ -81,11 +82,11 @@ namespace NitroxServer.GameLogic.Entities
         {
             List<Entity> result;
 
-            lock (phasingEntitiesByAbsoluteCell)
+            lock (phasingEntitiesByBatchCell)
             {
-                if (!phasingEntitiesByAbsoluteCell.TryGetValue(absoluteEntityCell, out result))
+                if (!phasingEntitiesByBatchCell.TryGetValue(absoluteEntityCell.BatchId, out result))
                 {
-                    result = phasingEntitiesByAbsoluteCell[absoluteEntityCell] = new List<Entity>();
+                    result = phasingEntitiesByBatchCell[absoluteEntityCell.BatchId] = new List<Entity>();
                 }
             }
 
@@ -151,13 +152,13 @@ namespace NitroxServer.GameLogic.Entities
             }
             else
             {
-                lock (phasingEntitiesByAbsoluteCell)
+                lock (phasingEntitiesByBatchCell)
                 {
                     List<Entity> phasingEntitiesInCell = null;
 
-                    if (!phasingEntitiesByAbsoluteCell.TryGetValue(entity.AbsoluteEntityCell, out phasingEntitiesInCell))
+                    if (!phasingEntitiesByBatchCell.TryGetValue(entity.AbsoluteEntityCell.BatchId, out phasingEntitiesInCell))
                     {
-                        phasingEntitiesInCell = phasingEntitiesByAbsoluteCell[entity.AbsoluteEntityCell] = new List<Entity>();
+                        phasingEntitiesInCell = phasingEntitiesByBatchCell[entity.AbsoluteEntityCell.BatchId] = new List<Entity>();
                     }
 
                     phasingEntitiesInCell.Add(entity);
@@ -185,11 +186,11 @@ namespace NitroxServer.GameLogic.Entities
                 }
                 else
                 {
-                    lock (phasingEntitiesByAbsoluteCell)
+                    lock (phasingEntitiesByBatchCell)
                     {
                         List<Entity> entities;
 
-                        if (phasingEntitiesByAbsoluteCell.TryGetValue(entity.AbsoluteEntityCell, out entities))
+                        if (phasingEntitiesByBatchCell.TryGetValue(entity.AbsoluteEntityCell.BatchId, out entities))
                         {
                             entities.Remove(entity);
                         }
@@ -200,7 +201,7 @@ namespace NitroxServer.GameLogic.Entities
 
         private void LoadUnspawnedEntities(AbsoluteEntityCell[] cells)
         {
-            IEnumerable<NitroxInt3> distinctBatchIds = cells.Select(cell => cell.BatchId).Distinct();
+            IEnumerable<NitroxInt3> distinctBatchIds = cells.Select(c => c.BatchId).Distinct();
 
             foreach (NitroxInt3 batchId in distinctBatchIds)
             {
@@ -208,13 +209,13 @@ namespace NitroxServer.GameLogic.Entities
 
                 lock (entitiesById)
                 {
-                    lock (phasingEntitiesByAbsoluteCell)
+                    lock (phasingEntitiesByBatchCell)
                     {
                         foreach (Entity entity in spawnedEntities)
                         {
-                            if (entity.ParentId != null)
+                            if (entity.Transform.Parent != null)
                             {
-                                Optional<Entity> opEnt = GetEntityById(entity.ParentId);
+                                Optional<Entity> opEnt = GetEntityById(entity.Transform.Parent.Id);
 
                                 if (opEnt.HasValue)
                                 {
@@ -222,7 +223,7 @@ namespace NitroxServer.GameLogic.Entities
                                 }
                                 else
                                 {
-                                    Log.Error("Parent not Found! Are you sure it exists? " + entity.ParentId);
+                                    Log.Error("Parent not Found! Are you sure it exists? " + entity.Transform.Parent.Id);
                                 }
                             }
 
@@ -243,7 +244,7 @@ namespace NitroxServer.GameLogic.Entities
                 return; // We don't care what cell a global root entity resides in.  Only phasing entities.
             }
 
-            lock (phasingEntitiesByAbsoluteCell)
+            lock (phasingEntitiesByBatchCell)
             {
                 List<Entity> oldList = GetEntities(oldCell);
                 oldList.Remove(entity);
