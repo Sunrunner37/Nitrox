@@ -1,8 +1,6 @@
 ﻿using LiteNetLib;
 using LiteNetLib.Utils;
-using NitroxModel.Logger;
 using NitroxModel.Packets;
-using NitroxModel.Server;
 using NitroxServer.Communication.Packets;
 using NitroxServer.GameLogic;
 using NitroxServer.GameLogic.Entities;
@@ -22,6 +20,7 @@ namespace NitroxServer.Communication.NetworkingLayer.LiteNetLib
             listener = new EventBasedNetListener();
             server = new NetManager(listener);
         }
+
         public override bool Start()
         {
             listener.PeerConnectedEvent += PeerConnected;
@@ -73,7 +72,7 @@ namespace NitroxServer.Communication.NetworkingLayer.LiteNetLib
 
         private void OnPacketReceived(WrapperPacket wrapperPacket, NetPeer peer)
         {
-            NitroxConnection connection = GetConnection(peer.Id);
+            INitroxConnection connection = GetConnection(peer.Id);
             Packet packet = Packet.Deserialize(wrapperPacket.packetData);
             ProcessIncomingData(connection, packet);
         }
@@ -90,9 +89,9 @@ namespace NitroxServer.Communication.NetworkingLayer.LiteNetLib
             }
         }
 
-        private NitroxConnection GetConnection(long remoteIdentifier)
+        private INitroxConnection GetConnection(long remoteIdentifier)
         {
-            NitroxConnection connection;
+            INitroxConnection connection;
 
             lock (connectionsByRemoteIdentifier)
             {
