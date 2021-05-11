@@ -72,6 +72,13 @@ namespace NitroxServer.GameLogic
                 return new MultiplayerSessionReservation(correlationId, rejectedState);
             }
 
+            bool hasSeenPlayerBefore = player != null;
+            if (serverConfig.UseToken && hasSeenPlayerBefore && player.AuthToken != authenticationContext.AuthToken)
+            {
+                MultiplayerSessionReservationState rejectedState = MultiplayerSessionReservationState.REJECTED | MultiplayerSessionReservationState.AUTHENTICATION_TOKEN_REJECTED;
+                return new MultiplayerSessionReservation(correlationId, rejectedState);
+            }
+
             if (reservedPlayerNames.Contains(playerName))
             {
                 MultiplayerSessionReservationState rejectedState = MultiplayerSessionReservationState.REJECTED | MultiplayerSessionReservationState.UNIQUE_PLAYER_NAME_CONSTRAINT_VIOLATED;
@@ -86,11 +93,9 @@ namespace NitroxServer.GameLogic
                 reservedPlayerNames.Add(playerName);
             }
 
-
-            bool hasSeenPlayerBefore = player != null;
             ushort playerId = hasSeenPlayerBefore ? player.Id : ++currentPlayerId;
 
-            PlayerContext playerContext = new PlayerContext(playerName, playerId, !hasSeenPlayerBefore, playerSettings);
+            PlayerContext playerContext = new PlayerContext(playerName, playerId, !hasSeenPlayerBefore, playerSettings, authenticationContext.AuthToken);
             string reservationKey = Guid.NewGuid().ToString();
 
             reservations.Add(reservationKey, playerContext);
@@ -123,7 +128,8 @@ namespace NitroxServer.GameLogic
                     Perms.PLAYER,
                     defaultPlayerStats,
                     new List<EquippedItemData>(),
-                    new List<EquippedItemData>());
+                    new List<EquippedItemData>(),
+                    playerContext.AuthToken);
                 allPlayersByName[playerContext.PlayerName] = player;
             }
 

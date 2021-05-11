@@ -3,6 +3,8 @@ using NitroxModel.Helper;
 using NitroxModel.Logger;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using System;
+using NitroxClient.Persistence;
 
 namespace NitroxClient.MonoBehaviours.DiscordRP
 {
@@ -41,7 +43,13 @@ namespace NitroxClient.MonoBehaviours.DiscordRP
                 string[] splitSecret = secret.Split(':');
                 string ip = splitSecret[0];
                 string port = splitSecret[1];
-                MainMenuMultiplayerPanel.OpenJoinServerMenu(ip, port);
+                Guid authToken = PersistedClientData.GetAuthToken(ip, port);
+                if(authToken == Guid.Empty)
+                {
+                    authToken = Guid.NewGuid();
+                    PersistedClientData.EmplaceServer("Discord added server", ip, port, authToken);
+                }
+                MainMenuMultiplayerPanel.OpenJoinServerMenu(ip, port, authToken);
             }
             else
             {
