@@ -1,5 +1,7 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
@@ -10,77 +12,140 @@ namespace NitroxModel.Discovery.InstallationFinders
         public const string SUBNAUTICA_GAME_NAME = "Subnautica";
         public const int SUBNAUTICA_APP_ID = 264710;
 
-        public string FindGame(IList<string> errors = null)
-        {
-            string steamPath = (string)ReadRegistrySafe("Software\\Valve\\Steam", "SteamPath");
-            if (string.IsNullOrEmpty(steamPath))
-            {
-                errors?.Add("It appears you don't have Steam installed.");
-                return null;
-            }
-
-            string appsPath = Path.Combine(steamPath, "steamapps");
-            if (File.Exists(Path.Combine(appsPath, $"appmanifest_{SUBNAUTICA_APP_ID}.acf")))
-            {
-                return Path.Combine(appsPath, "common", SUBNAUTICA_GAME_NAME);
-            }
-
-            string path = SearchAllInstallations(Path.Combine(appsPath, "libraryfolders.vdf"), SUBNAUTICA_APP_ID, SUBNAUTICA_GAME_NAME);
-            if (string.IsNullOrEmpty(path))
-            {
-                errors?.Add($"It appears you don't have {SUBNAUTICA_GAME_NAME} installed anywhere. The game files are needed to run the server.");
-            }
-            else
-            {
-                return path;
-            }
-
-            return null;
-        }
+        private static readonly Regex steamJsonRegex = new("\"(.*)\"\t*\"(.*)\"", RegexOptions.Compiled);
 
         /// <summary>
         ///     Finds game install directory by iterating through all the steam game libraries configured and finding the appid
-        ///     that matches <see cref="SUBNAUTICA_APP_ID" />.
+        ///     that matches.
         /// </summary>
-        private static string SearchAllInstallations(string libraryfolders, int appid, string gameName)
+        /// <param name="steamAppId"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception">If steam is not installed or game could not be found.</exception>
+        public static string FindGame(uint steamAppId)
         {
-            if (!File.Exists(libraryfolders))
+            string steamPath = (string) ReadRegistrySafe("Software\\Valve\\Steam", "SteamPath");
+            if (string.IsNullOrEmpty(steamPath))
             {
-                return null;
-            }
-
-            StreamReader file = new(libraryfolders);
-            string line;
-            while ((line = file.ReadLine()) != null)
-            {
-                line = Regex.Unescape(line.Trim().Trim('\t'));
-                Match regMatch = Regex.Match(line, "\"(.*)\"\t*\"(.*)\"");
-                string key = regMatch.Groups[1].Value;
-                string value = regMatch.Groups[2].Value;
-
-                if (int.TryParse(key, out _))
+                try
                 {
-                    if (File.Exists(Path.Combine(value, $"steamapps/appmanifest_{appid}.acf")))
+                    steamPath = (string) ReadRegistrySafe(@"SOFTWARE\Valve\Steam",
+                                                          "InstallPath",
+                                                          RegistryHive.LocalMachine);
+                }
+                finally
+                {
+                    if (string.IsNullOrEmpty(steamPath))
                     {
-                        return Path.Combine(value, "steamapps/common", gameName);
+                        throw new Exception("Steam could not be found. Check if it is installed.");
                     }
                 }
             }
 
-            return null;
-        }
+            string appsPath = Path.Combine(steamPath, "steamapps");
 
-        private static object ReadRegistrySafe(string path, string key)
-        {
-            using (RegistryKey subkey = Registry.CurrentUser.OpenSubKey(path))
+            // Test main steamapps.
+            string game = GameDataFromAppManifest(Path.Combine(appsPath, $"appmanifest_{steamAppId}.acf"));
+            if (game == null)
             {
-                if (subkey != null)
+                // Test steamapps on other drives (as defined by Steam).
+                game = SearchAllInstallations(Path.Combine(appsPath, "libraryfolders.vdf"), steamAppId);
+                if (game == null)
                 {
-                    return subkey.GetValue(key);
+                    throw new Exception($"Steam game with id {steamAppId} is not installed.");
                 }
             }
 
-            return null;
+            return game;
+        }
+
+        public string FindGame(IList<string> errors = null)
+        {
+            var steamPath = (string) ReadRegistrySafe("Software\\Valve\\Steam", "SteamPath");
+            if (string.IsNullOrEmpty(steamPath))
+            {
+                try
+                {
+                    steamPath = (string) ReadRegistrySafe(@"SOFTWARE\Valve\Steam",
+                                                          "InstallPath",
+                                                          RegistryHive.LocalMachine);
+                }
+                finally
+                {
+                    if (string.IsNullOrEmpty(steamPath))
+                    {
+                        throw new Exception("Steam could not be found. Check if it is installed.");
+                    }
+                }
+            }
+
+            var appsPath = Path.Combine(steamPath, "steamapps");
+
+            // Test main steamapps.
+            var game = GameDataFromAppManifest(Path.Combine(appsPath, $"appmanifest_{SUBNAUTICA_APP_ID}.acf"));
+            if (game == null)
+            {
+                // Test steamapps on other drives (as defined by Steam).
+                game = SearchAllInstallations(Path.Combine(appsPath, "libraryfolders.vdf"), SUBNAUTICA_APP_ID);
+                if (game == null)
+                {
+                    throw new Exception($"Steam game with id {SUBNAUTICA_APP_ID} is not installed.");
+                }
+            }
+
+            return game;
+        }
+
+        private static string SearchAllInstallations(
+            string libraryfoldersFile, uint appId)
+        {
+            if (!File.Exists(libraryfoldersFile)) return null;
+            // Turn contents of file into dictionary lookup.
+            Dictionary<string, string> steamLibraryData = JsonAsDictionary(File.ReadAllText(libraryfoldersFile));
+
+            int steamLibraryIndex = 0;
+            while (true)
+            {
+                steamLibraryIndex++;
+                if (!steamLibraryData.TryGetValue(steamLibraryIndex.ToString(), out string steamLibraryPath)) return null;
+                string manifestFile = Path.Combine(steamLibraryPath, $"steamapps/appmanifest_{appId}.acf");
+                if (!File.Exists(manifestFile)) continue;
+
+                return GameDataFromAppManifest(manifestFile);
+            }
+        }
+
+        private static string GameDataFromAppManifest(string manifestFile)
+        {
+            Dictionary<string, string> gameData;
+            try
+            {
+                gameData = JsonAsDictionary(File.ReadAllText(manifestFile));
+            }
+            catch (FileNotFoundException)
+            {
+                return null;
+            }
+
+            // Validate steam game data exists.
+            if (!gameData.TryGetValue("installdir", out string gameInstallFolderName)) return null;
+            string gameDir =
+                Path.GetFullPath(Path.Combine(Path.GetDirectoryName(manifestFile), "common", gameInstallFolderName));
+            if (!Directory.Exists(gameDir)) return null;
+
+            return gameDir;
+        }
+
+        private static Dictionary<string, string> JsonAsDictionary(string json)
+        {
+            return steamJsonRegex.Matches(json)
+                                 .Cast<Match>()
+                                 .ToDictionary(m => m.Groups[1].Value.ToLowerInvariant(), m => m.Groups[2].Value);
+        }
+
+        private static object ReadRegistrySafe(string path, string key, RegistryHive hive = RegistryHive.CurrentUser)
+        {
+            using RegistryKey subkey = RegistryKey.OpenBaseKey(hive, RegistryView.Registry32).OpenSubKey(path);
+            return subkey?.GetValue(key);
         }
     }
 }
