@@ -60,39 +60,15 @@ namespace NitroxModel.Discovery.InstallationFinders
 
         public string FindGame(IList<string> errors = null)
         {
-            var steamPath = (string) ReadRegistrySafe("Software\\Valve\\Steam", "SteamPath");
-            if (string.IsNullOrEmpty(steamPath))
+            try
             {
-                try
-                {
-                    steamPath = (string) ReadRegistrySafe(@"SOFTWARE\Valve\Steam",
-                                                          "InstallPath",
-                                                          RegistryHive.LocalMachine);
-                }
-                finally
-                {
-                    if (string.IsNullOrEmpty(steamPath))
-                    {
-                        throw new Exception("Steam could not be found. Check if it is installed.");
-                    }
-                }
+                return FindGame(SUBNAUTICA_APP_ID);
             }
-
-            var appsPath = Path.Combine(steamPath, "steamapps");
-
-            // Test main steamapps.
-            var game = GameDataFromAppManifest(Path.Combine(appsPath, $"appmanifest_{SUBNAUTICA_APP_ID}.acf"));
-            if (game == null)
+            catch (Exception ex)
             {
-                // Test steamapps on other drives (as defined by Steam).
-                game = SearchAllInstallations(Path.Combine(appsPath, "libraryfolders.vdf"), SUBNAUTICA_APP_ID);
-                if (game == null)
-                {
-                    throw new Exception($"Steam game with id {SUBNAUTICA_APP_ID} is not installed.");
-                }
+                errors?.Add(ex.Message);
+                return null;
             }
-
-            return game;
         }
 
         private static string SearchAllInstallations(
