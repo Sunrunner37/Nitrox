@@ -44,10 +44,9 @@
     <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
     
     <Target Name="CompileBuildTool" BeforeTargets="BeforeResolveReferences" Condition="!Exists('$(BuildToolDir)BuildTool.exe')">
-      <Message Importance="high" Text="hello, world!" />
+      <!-- Compile references needed for build tool manually. -->
       <MSBuild Projects="$(SolutionDir)LiteNetLib\LiteNetLib.sln" ContinueOnError="false" Properties="Configuration=$(Configuration)" />
       <MSBuild Projects="$(SolutionDir)NitroxModel\NitroxModel.csproj" ContinueOnError="false" Properties="Configuration=$(Configuration)" />
-<!--      $(SolutionDir)NitroxModel\NitroxModel.csproj-->
       <MSBuild Projects="$(SolutionDir)BuildTool\BuildTool.csproj" ContinueOnError="false" Properties="Configuration=$(Configuration)" />
     </Target>
 
