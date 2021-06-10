@@ -43,11 +43,12 @@
 
     <!-- Include default project references to all other "Nitrox*" projects -->
     <ItemGroup Condition="'$(UnityModLibrary)' == 'true'">
-        <ProjectReference Include="$(SolutionDir)NitroxModel\NitroxModel.csproj">
-            <Name>NitroxModel</Name>
-        </ProjectReference>
         <ProjectReference Include="$(SolutionDir)BuildToolBuilder\BuildToolBuilder.csproj">
             <Name>BuildToolBuilder</Name>
+            <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+        </ProjectReference>
+        <ProjectReference Include="$(SolutionDir)NitroxModel\NitroxModel.csproj">
+            <Name>NitroxModel</Name>
         </ProjectReference>
     </ItemGroup>
 
@@ -57,7 +58,7 @@
     -->
     <Target Name="PrepareForModding" BeforeTargets="BeforeResolveReferences" Condition="'$(UnityModLibrary)' == 'true'">
         <!-- Run build tool which generates MSBuild properties file with Subnautica info. -->
-        <Exec Condition="!Exists('$(BuildGenDir)game.props') and Exists('$(BuildToolDir)BuildTool.exe')"
+        <Exec Condition="Exists('$(BuildToolDir)BuildTool.exe') and !Exists('$(BuildGenDir)publicized_assemblies')"
               LogStandardErrorAsError="true"
               Command="$(BuildToolDir)BuildTool.exe"/>
     </Target>
