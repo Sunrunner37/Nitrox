@@ -12,7 +12,7 @@ using System.Runtime.InteropServices;
 // UNIQUE: [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
 // UNIQUE: [assembly: AssemblyProduct("")]
-[assembly: AssemblyCopyright("Copyright ©  2020")]
+[assembly: AssemblyCopyright("Copyright ©  2021")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 

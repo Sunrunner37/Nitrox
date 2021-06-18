@@ -71,23 +71,29 @@ namespace NitroxModel.Discovery.InstallationFinders
             }
         }
 
-        private static string SearchAllInstallations(
-            string libraryfoldersFile, uint appId)
+        private static string SearchAllInstallations(string libraryFoldersFile, uint appId)
         {
-            if (!File.Exists(libraryfoldersFile)) return null;
-            // Turn contents of file into dictionary lookup.
-            Dictionary<string, string> steamLibraryData = JsonAsDictionary(File.ReadAllText(libraryfoldersFile));
-
-            int steamLibraryIndex = 0;
-            while (true)
+            if (!File.Exists(libraryFoldersFile))
             {
-                steamLibraryIndex++;
-                if (!steamLibraryData.TryGetValue(steamLibraryIndex.ToString(), out string steamLibraryPath)) return null;
+                return null;
+            }
+
+            // Turn contents of file into dictionary lookup.
+            Dictionary<string, string> steamLibraryData = JsonAsDictionary(File.ReadAllText(libraryFoldersFile));
+
+            int steamLibraryIndex = -1;
+            while (steamLibraryData.TryGetValue((++steamLibraryIndex).ToString(), out string steamLibraryPath))
+            {
                 string manifestFile = Path.Combine(steamLibraryPath, $"steamapps/appmanifest_{appId}.acf");
-                if (!File.Exists(manifestFile)) continue;
+                if (!File.Exists(manifestFile))
+                {
+                    continue;
+                }
 
                 return GameDataFromAppManifest(manifestFile);
             }
+
+            return null;
         }
 
         private static string GameDataFromAppManifest(string manifestFile)
@@ -103,10 +109,16 @@ namespace NitroxModel.Discovery.InstallationFinders
             }
 
             // Validate steam game data exists.
-            if (!gameData.TryGetValue("installdir", out string gameInstallFolderName)) return null;
-            string gameDir =
-                Path.GetFullPath(Path.Combine(Path.GetDirectoryName(manifestFile), "common", gameInstallFolderName));
-            if (!Directory.Exists(gameDir)) return null;
+            if (!gameData.TryGetValue("installdir", out string gameInstallFolderName))
+            {
+                return null;
+            }
+
+            string gameDir = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(manifestFile), "common", gameInstallFolderName));
+            if (!Directory.Exists(gameDir))
+            {
+                return null;
+            }
 
             return gameDir;
         }
