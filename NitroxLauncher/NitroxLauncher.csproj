@@ -266,12 +266,6 @@
     <Resource Include="Images\serverIllustration.png" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="dnlib">
-      <Version>3.3.2</Version>
-    </PackageReference>
-    <PackageReference Include="Lib.Harmony">
-      <Version>2.0.4.0</Version>
-    </PackageReference>
     <PackageReference Include="WindowsAPICodePack-Core">
       <Version>1.1.2</Version>
     </PackageReference>
@@ -283,17 +277,9 @@
        TODO: Try fix this as a project reference to Nitrox.Subnautica.Assets that will copy the files on build automatically. -->
   <Target Name="MoveNitroxAssetsToLauncherOutput" AfterTargets="Build" Condition="'$(OS)' == 'Windows_NT'">
     <ItemGroup>
-      <NitroxSubnauticaAssets Include="..\Nitrox.Subnautica.Assets\**\*." />
+      <NitroxSubnauticaAssets Include="$(SolutionDir)\Nitrox.Subnautica.Assets\**\*.*" />
     </ItemGroup>
-    <ItemGroup>
-      <NitroxSubnauticaStaticDlls Include="..\Nitrox.Subnautica.Assets\**\*.dll" />
-    </ItemGroup>
-    <ItemGroup>
-      <NitroxSubnauticaLanguageFiles Include="..\Nitrox.Subnautica.Assets\LanguageFiles\*.json" />
-    </ItemGroup>
-    <Copy SourceFiles="@(NitroxSubnauticaAssets)" DestinationFolder="$(TargetDir)\%(RecursiveDir)" />
-    <Copy SourceFiles="@(NitroxSubnauticaStaticDlls)" DestinationFolder="$(TargetDir)\lib\%(RecursiveDir)" />
-    <Copy SourceFiles="@(NitroxSubnauticaLanguageFiles)" DestinationFolder="$(TargetDir)\LanguageFiles\%(RecursiveDir)" />
+    <Copy SourceFiles="@(NitroxSubnauticaAssets)" DestinationFolder="$(TargetDir)\%(RecursiveDir)" SkipUnchangedFiles="true" />
   </Target>
   <Target Name="MoveDependenciesToLib" AfterTargets="Build">
     <ItemGroup>
