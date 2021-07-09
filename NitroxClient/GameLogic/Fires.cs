@@ -6,6 +6,7 @@ using NitroxModel.Helper;
 using NitroxModel.Logger;
 using NitroxModel.Packets;
 using NitroxModel_Subnautica.DataStructures.GameLogic;
+using NitroxModel_Subnautica.DataStructures;
 using NitroxModel_Subnautica.Packets;
 using UnityEngine;
 
@@ -50,30 +51,39 @@ namespace NitroxClient.GameLogic
         }
 
         /// <summary>
-        /// Triggered when <see cref="Fire.Douse(float)"/> is executed. To Douse a fire manually, retrieve the <see cref="Fire"/> call the Douse method
+        /// Triggered when <see cref="Fire.Douse(float)"/> is executed. To Douse a fire manually, retrieve the <see cref="Fire"/> call the Douse method.
+        /// Note that the passed douseAmount is an incrment, not a total.
         /// </summary>
         public void OnDouse(Fire fire, float douseAmount)
         {
             NitroxId fireId = NitroxEntity.GetId(fire.gameObject);
+            float summedDouseAmount = douseAmount + fireDouseAmount.GetOrDefault(fireId, 0);
 
-            // Temporary packet limiter
-            if (!fireDouseAmount.ContainsKey(fireId))
+            if (summedDouseAmount < FIRE_DOUSE_AMOUNT_TRIGGER)
             {
-                fireDouseAmount.Add(fireId, douseAmount);
+                // combine multiple events into a single packet
+                fireDouseAmount[fireId] = summedDouseAmount;
+                // note: There is no process to eventually send out these stored partials if the player stops dousing
+                return;
+            }
+
+            if (fire.IsExtinguished())
+            {
+                // extinguished fires shouldn't pop up again
+                fireDouseAmount.Remove(fireId);
             }
             else
             {
-                float summedDouseAmount = fireDouseAmount[fireId] + douseAmount;
-
-                if (summedDouseAmount > FIRE_DOUSE_AMOUNT_TRIGGER)
-                {
-                    // It is significantly faster to keep the key as a 0 value than to remove it and re-add it later.
-                    fireDouseAmount[fireId] = 0;
-
-                    FireDoused packet = new FireDoused(fireId, douseAmount);
-                    packetSender.Send(packet);
-                }
+                // It is significantly faster to keep the key as a 0 value than to remove it and re-add it later.
+                fireDouseAmount[fireId] = 0;
             }
+
+            // fallback data in case the fireID is not synced
+            Transform firePlace = fire.transform.parent;
+            NitroxId placeId = NitroxEntity.GetId(firePlace.gameObject);
+
+            FireDoused packet = new FireDoused(fireId, summedDouseAmount, placeId, firePlace.position.ToDto());
+            packetSender.Send(packet);
         }
 
         /// <summary>
