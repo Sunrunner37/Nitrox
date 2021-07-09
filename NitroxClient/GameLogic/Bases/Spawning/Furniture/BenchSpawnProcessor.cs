@@ -7,12 +7,7 @@ using UnityEngine;
 
 namespace NitroxClient.GameLogic.Bases.Spawning.Furniture
 {
-    /*
-     * When a bio reactor is created, two objects are spawned: the main world object (BaseBioReactorGeometry) and
-     * the core power logic as a separate game object (BaseBioReactor, also known as a 'module').  The BaseBioReactor 
-     * resides as a direct child of the base object (probably so UWE could iterate them easy).  When the object spawns, 
-     * we use this class to set a deterministic id seeded by the parent id.  This keeps inventory actions in sync.
-     */
+    // For better immersion we split the Bench in three parts (left/center/right). On each can sit one player.
     public class BenchSpawnProcessor : FurnitureSpawnProcessor
     {
         protected override TechType[] ApplicableTechTypes { get; } =
