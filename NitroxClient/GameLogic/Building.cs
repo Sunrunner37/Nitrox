@@ -1,5 +1,4 @@
 ﻿using NitroxClient.Communication.Abstract;
-using NitroxClient.GameLogic.Bases.Spawning;
 using NitroxClient.GameLogic.Bases.Spawning.BasePiece;
 using NitroxClient.GameLogic.Bases.Spawning.Furniture;
 using NitroxClient.GameLogic.Helper;
@@ -172,7 +171,9 @@ namespace NitroxClient.GameLogic
                 // we look for a object that is able to be deconstructed that hasn't been tagged yet.
                 foreach (Transform child in cellTransform)
                 {
-                    if (!child.GetComponent<NitroxEntity>() && child.GetComponent<BaseDeconstructable>()) // Is new piece
+                    bool isNewBasePiece = !child.GetComponent<NitroxEntity>() && child.GetComponent<BaseDeconstructable>();
+
+                    if (isNewBasePiece)
                     {
                         finishedPiece = child.gameObject;
                         break;
