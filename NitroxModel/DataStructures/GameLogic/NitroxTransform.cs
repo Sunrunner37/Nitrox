@@ -31,44 +31,48 @@ namespace NitroxModel.DataStructures.GameLogic
         {
             get 
             {
-                NitroxMatrix4x4 matrix = Parent != null ? Parent.localToWorldMatrix : NitroxMatrix4x4.Identity;
+                NitroxMatrix4x4 matrix = Parent?.localToWorldMatrix ?? NitroxMatrix4x4.Identity;
                 return matrix.MultiplyPoint(LocalPosition);
             }
             set
             {
                 NitroxMatrix4x4 matrix = Parent != null ? Parent.localToWorldMatrix.Inverse * NitroxMatrix4x4.TRS(value, LocalRotation, LocalScale) : NitroxMatrix4x4.TRS(value, LocalRotation, LocalScale);
 
-                LocalPosition = NitroxMatrix4x4.ExtractTranslation(ref matrix);
+                LocalPosition = NitroxMatrix4x4.GetTranslation(ref matrix);
             }
         }
         public NitroxQuaternion Rotation
         {
             get
             {
-                NitroxMatrix4x4 matrix = Parent != null ? Parent.localToWorldMatrix : NitroxMatrix4x4.Identity;
-                NitroxMatrix4x4.ExtractScale(ref matrix); // This is to just get the scale out of the matrix so the rotation is accurate
-                NitroxQuaternion rotation = NitroxMatrix4x4.ExtractRotation(ref matrix) * LocalRotation;
+                NitroxMatrix4x4 matrix = Parent?.localToWorldMatrix ?? NitroxMatrix4x4.Identity;
+                NitroxMatrix4x4 rMatrix = NitroxMatrix4x4.ExtractScale(ref matrix, out _);
+                NitroxQuaternion rotation = NitroxMatrix4x4.GetRotation(ref rMatrix) * LocalRotation;
                 return rotation;
             }
             set
             {
                 NitroxMatrix4x4 matrix = Parent != null ? Parent.localToWorldMatrix.Inverse * NitroxMatrix4x4.TRS(LocalPosition, value, LocalScale) : NitroxMatrix4x4.TRS(LocalPosition, value, LocalScale);
-
-                NitroxMatrix4x4.ExtractScale(ref matrix);
-                LocalRotation = NitroxMatrix4x4.ExtractRotation(ref matrix);
+                NitroxMatrix4x4 rMatrix = NitroxMatrix4x4.ExtractScale(ref matrix, out _);
+                LocalRotation = NitroxMatrix4x4.GetRotation(ref rMatrix);
             }
         }
 
-        public void SetParent(NitroxTransform parent)
+        public void SetParent(NitroxTransform parent, bool worldPositionStays = true)
         {
-            Parent = parent;
-            
-            
-        }
+            if (!worldPositionStays)
+            {
+                Parent = parent;
+                return;
+            }
 
-        public void SetParent(NitroxTransform parent, bool worldPositionStays)
-        {
-            throw new NotImplementedException("This is not Implementwaed yet. Added by killzoms");
+            NitroxVector3 position = Position;
+            NitroxQuaternion rotation = Rotation;
+
+            Parent = parent;
+
+            Position = position;
+            Rotation = rotation;
         }
 
         private NitroxTransform()
@@ -87,7 +91,7 @@ namespace NitroxModel.DataStructures.GameLogic
 
         public override string ToString()
         {
-            return string.Format("(Position: {0}, LocalPosition: {1}, Rotation: {2}, LocalRotation: {3}, LocalScale: {4})", Position, LocalPosition, Rotation, LocalRotation, LocalScale);
+            return $"[Transform - Position: {Position}; LocalPosition: {LocalPosition}; Rotation: {Rotation}; LocalRotation: {LocalRotation}; LocalScale: {LocalScale}]";
         }
     }
 }

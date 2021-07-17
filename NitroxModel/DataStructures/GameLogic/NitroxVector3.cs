@@ -6,7 +6,7 @@ namespace NitroxModel.DataStructures.GameLogic
 {
     [ProtoContract]
     [Serializable]
-    public struct NitroxVector3
+    public struct NitroxVector3 : IEquatable<NitroxVector3>
     {
         [ProtoMember(1)]
         public float X;
@@ -30,7 +30,15 @@ namespace NitroxModel.DataStructures.GameLogic
 
         public bool Equals(NitroxVector3 other)
         {
-            return X.Equals(other.X) && Y.Equals(other.Y) && Z.Equals(other.Z);
+            return Equals(other, float.Epsilon);
+        }
+
+        public bool Equals(NitroxVector3 other, float tolerance)
+        {
+            return X == other.X && Y == other.Y && Z == other.Z ||
+                   Math.Abs(other.X - X) < tolerance &&
+                   Math.Abs(other.Y - Y) < tolerance &&
+                   Math.Abs(other.Z - Z) < tolerance;
         }
 
         public override bool Equals(object obj)
@@ -80,9 +88,19 @@ namespace NitroxModel.DataStructures.GameLogic
             return new(lhs.X * rhs, lhs.Y * rhs, lhs.Z * rhs);
         }
 
+        public static NitroxVector3 operator /(NitroxVector3 lhs, double rhs)
+        {
+            return new((float)(lhs.X / rhs), (float)(lhs.Y / rhs), (float)(lhs.Z / rhs));
+        }
+
+        public static NitroxVector3 operator *(NitroxVector3 lhs, double rhs)
+        {
+            return new((float)(lhs.X * rhs), (float)(lhs.Y * rhs), (float)(lhs.Z * rhs));
+        }
+
         public static bool operator ==(NitroxVector3 lhs, NitroxVector3 rhs)
         {
-            return lhs.X == rhs.X && lhs.Y == rhs.Y && lhs.Z == rhs.Z;
+            return lhs.Equals(rhs);
         }
 
         public static bool operator !=(NitroxVector3 lhs, NitroxVector3 rhs)
@@ -90,10 +108,19 @@ namespace NitroxModel.DataStructures.GameLogic
             return !(lhs == rhs);
         }
 
+        public static implicit operator NitroxVector3(NitroxVector4 vector4)
+        {
+            return new NitroxVector3(vector4.X, vector4.Y, vector4.Z);
+        }
+
         public static NitroxVector3 Normalize(NitroxVector3 value)
         {
-            float length = value.Magnitude;
-            return new NitroxVector3(value.X / length, value.Y / length, value.Z / length);
+            float ls = value.X * value.X + value.Y * value.Y + value.Z * value.Z;
+            if (ls < 9.99999974737875E-06)
+            {
+                return Zero;
+            }
+            return value / Mathf.Sqrt(ls);
         }
 
         public static float Length(NitroxVector3 value)
